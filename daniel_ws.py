@@ -46,117 +46,74 @@ def sram_traffic(
     #assign addr for filter and ifmap
     filt_addr =[]
     ifmap_base_addr =[]
+    ifmap_offset = []
     
-    for c in range(num_filt):
-        addr = c* r2c +filt_base
-        filt_addr.append(addr)
-
+    for f in range(num_filt):
+        filt_addr.append(f*r2c + filt_base)
+    
     hc = ifmap_w * num_channels
-    ofmap_w = E_w
-    ofmap_h = E_h
-
-    for ofmap_px in range(e2):
-        addr = (ofmap_px / ofmap_w) *strides*hc + (ofmap_px % ofmap_w)*strides
+    for i in range(e2):
+        addr = (i%E_w)*num_channels*strides + math.floor(i/E_w)*hc*strides
         ifmap_base_addr.append(addr)
-
-
-    #assuming no fold
-    cycles_filt = gen_filter_trace(
-                    cycle = cycles,
-                    dim_rows = dimension_rows,
-                    dim_col = dimension_cols,
-                    filt_h = filt_h,
-                    filt_w = filt_w,
-                    num_filt = num_filt,
-                    num_channels = num_channels,
-                    filt_addr = filt_addr,
-                    sram_read_trace_file = sram_read_trace_file
-                    )
-
-    cycles_ifmap = gen_ifmap_trace(
-                    cycle = cycles_filt,
-                    dim_rows = dimension_rows,
-                    dim_cols = dimension_cols,
-                    ifmap_h = ifmap_h,
-                    ifmap_w = ifmap_w,
-                    filt_h = filt_h,
-                    filt_w = filt_w,
-                    num_channels = num_channels,
-                    strides = strides,
-                    sram_read_trace_file = sram_read_trace_file
-                    )
-    cycles_ofmap = gen_ofmap_trace(
-                    cycle = cycles_filt,
-                    dim_rows = dimension_rows,
-                    dim_cols = dimension_cols,
-                    ofmap_base = ofmap_base,
-                    num_filt = num_filt,
-                    sram_write_trace_file = sram_write_trace_file
-                    )
-
-
-
-
-        
-
     
-def gen_filter_trace(
-        cycle =0,
-        dim_rows=4;
-        dim_cols=4,
-        filt_h =3, filt_w =3,
-        num_channels =3,
-        num_filt =8,
-        filt_addr = [],
-        sram_read_trace_file = "sram_read.csv"
-    ):
-    outfile = open(sram_read_trace_file,'w')
-    ifmap_data=""
-    for r in range(dim_rows):
-        ifmap_data += ", "
+    for i in range(r2c):
+        addr = math.floor(i/E_w)*hc*strides + (i%E_w)*strides
+        ifmap_offset.append(addr)
 
-    r2c = filt_h * filt_w * num_channels
-    for r in range(r2c):
-        data_in = str(cycle) + ", "+ifmap_data
-        cycle += 1
-        for c in range(num_filt):
-            data_in += str(filt_addr[c]) + ", "
-            filt_addr[c] += 1
-        if num_filt < dim_cols:
-            for k in range(c,num_cols):
-                data_in += ", "
-        data_in += "\n"
-        outfile.write(data_in)
-    outfile.close()
-    return cycle
+    prefill = ""
+    num_rows = dimension_rows
+    num_cols = dimension_cols
+
+    #each block addr
+    h_fold = 0
+    v_fold = 0
+
+
+    #prefill weights
+    for r in range(num_rows):
+        prefill += str(cycles)+", "
+        cycles += 1
+        for k in range(num_rows):
+            prefill += ", "
+        for c in range(num_cols):
+            prefill += str(filt_addr[c]+r)+", "
+        prefill += "\n"
     
-def gen_ifmap_trace(
-        cycle = 0,
-        dim_rows = 4, dim_cols =4,
-        ifmap_h = 7, ifmap_w = 7,
-        filt_h = 2, filt_w = 2,
-        num_channels = 3,
-        strides = 1,
-        sram_read_trace_file = "sram_read.csv"
-):
-    outfile = open(sram_read_trace_file,'w')
-    filt_data =""
-
+    trace = prefill
+    #stream ifmap windows
+    for i in range(e2):
+        trace += str(cycles)+", "
+        cycles += 1
+        ifmap_buf =[]
+        for r in range(num_rows,0,-1):
+            addr = ifmap_base_addr[i]+ifmap_offset[r-1]
+            trace += str(addr)+", "
+        for c in range(num_cols):
+            trace += ", "
+        trace += "\n"
+    
+    #그냥 2차원에 쫙 weight 저장해버리면? PE가 옮겨다니는 거임
+    h_fold += 1
+    #now, the needed_row is 2, column same
+    #by doing this, we can finish 5 output channels
     
     
-def gen_ofmap_trace:
-    
-    
+
+    print(trace)
+            
+
+                
+                
 
 
 
 
 if __name__ == "__main__":
    sram_traffic(
-       dimension_rows = 8,
-       dimension_cols = 4,
-       ifmap_h = 7, ifmap_w = 7,
+       dimension_rows = 6,
+       dimension_cols = 5,
+       ifmap_h = 5, ifmap_w = 5,
        filt_h = 2, filt_w = 2,
-       num_channels = 1, strides = 1,
-       num_filt = 7
+       num_channels = 2, strides = 1,
+       num_filt = 9
    )
