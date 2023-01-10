@@ -553,8 +553,8 @@ if __name__ == "__main__":
 
     m = 9
 
-    dim_h = 8
-    dim_v = 9
+    dim_h = 16
+    dim_v = 5
 
     sram_traffic(
         dimension_rows = dim_h,
