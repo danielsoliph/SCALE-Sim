@@ -1,8 +1,10 @@
 import math
 import dram_trace as dram
 import sram_traffic_os as sram
-import sram_traffic_ws as sram_ws
-import sram_traffic_is as sram_is
+############################################################ IMPORT CUSTOM SRAM_TRAFFIC FILE HERE ########################################################
+import daniel_ws as sram_ws # modify
+import daniel_is as sram_is # modify
+##########################################################################################################################################################
 
 def gen_all_traces(
         array_h = 4,
@@ -12,7 +14,7 @@ def gen_all_traces(
         num_channels = 3,
         strides = 1, num_filt = 8,
 
-        data_flow = 'os',
+        data_flow = 'is',
 
         word_size_bytes = 1,
         filter_sram_size = 64, ifmap_sram_size= 64, ofmap_sram_size = 64,
@@ -30,7 +32,7 @@ def gen_all_traces(
     util        = 0
 
     print("Generating traces and bw numbers")
-    if data_flow == 'os':
+    if data_flow == 'os': # return (1) sram_cycles (2) utilization
         sram_cycles, util = \
             sram.sram_traffic(
                 dimension_rows= array_h,
@@ -71,7 +73,7 @@ def gen_all_traces(
                 sram_write_trace_file = sram_write_trace_file
             )
 
-    #print("Generating DRAM traffic")
+    print("Generating DRAM traffic")
     dram.dram_trace_read_v2(
         sram_sz=ifmap_sram_size,
         word_sz_bytes=word_size_bytes,
@@ -362,62 +364,84 @@ def parse_sram_read_data(elems):
 
 
 def test():
+    
     test_fc1_24x24 = [27, 37, 512, 27, 37, 512, 1, 24, 1]
     test_yolo_tiny_conv1_24x24 = [418, 418, 3, 3, 3, 16, 1, 24, 1]
     test_mdnet_conv1_24x24 = [107, 107, 3, 7, 7, 96, 2, 24, 1]
+    test_my_custom_conv_4x4 = [4, 4, 1, 2, 2, 3, 2, 4, 1] # to test util
+    test_alexnet_conv1_32x32 = [224, 224, 3, 11, 11, 96, 4, 32, 1]
+    test_yolo_conv1_32x32 = [1080, 1920, 3, 3, 3, 32, 1, 32, 1]
+    test_googlenet_conv1_32x32 = [224, 224, 3, 7, 7, 64, 2, 32, 1]
+    test_alexnet_mod_conv1_32x32 = [227, 227, 3, 11, 11, 96, 4, 32, 1]
+    test_googlenet_mod_conv1_32x32 = [227, 227, 3, 7, 7, 64, 2, 32, 1]
 
-    #param = test_fc1_24x24
-    #param = test_yolo_tiny_conv1_24x24
-    param = test_mdnet_conv1_24x24
+    test_dict = {'yolo_tiny_conv1_24x24':test_yolo_tiny_conv1_24x24, 'mdnet_conv1_24x24':test_mdnet_conv1_24x24, 'alexnet_mod_conv1_32x32':test_alexnet_mod_conv1_32x32, 'googlenet_mod_conv1_32x32':test_googlenet_mod_conv1_32x32}
+    
+    #test_dict = {'alexnet_conv1_32x32':test_alexnet_conv1_32x32, 'googlenet_conv1_32x32':test_googlenet_conv1_32x32}
+    
+    #test_dict = {'alexnet_mod_conv1_32x32':test_alexnet_mod_conv1_32x32, 'googlenet_mod_conv1_32x32':test_googlenet_mod_conv1_32x32}
 
-    # The parameters for 1st layer of yolo_tiny
-    ifmap_h = param[0]
-    ifmap_w = param[1]
-    num_channels = param[2]
+    data_flow = 'is' ################# SET TYPE OF DATAFLOW HERE ################## possible types 'os', 'ws', 'is'
 
-    filt_h = param[3]
-    filt_w = param[4]
-    num_filters = param[5] #16
+    print(f"Starting test for {data_flow} dataflow")
+    print("")
 
-    strides = param[6]
+    for test_key, test_list in test_dict.items():
+        
+        print(f"Test for {test_key}")
+        param = test_list
 
-    # Model parameters
-    dimensions = param[7] #32 #16
-    word_sz = param[8]
+        # get parameters from the test_list
+        ifmap_h = param[0]
+        ifmap_w = param[1]
+        num_channels =param[2]
 
-    filter_sram_size = 1 * 1024
-    ifmap_sram_size = 1 * 1024
-    ofmap_sram_size = 1 * 1024
+        filt_h = param[3]
+        filt_w = param[4]
+        num_filters = param[5]
 
-    filter_base = 1000000
-    ifmap_base = 0
-    ofmap_base = 2000000
+        strides = param[6]
 
-    # Trace files
-    sram_read_trace = "test_sram_read.csv"
-    sram_write_trace  = "test_sram_write.csv"
+        # PE array parameter
+        dimensions = param[7] # dimensions = dim_rows = dim_cols
+        word_sz = param[8] # ???
 
-    dram_filter_read_trace = "test_dram_filt_read.csv"
-    dram_ifmap_read_trace  = "test_dram_ifamp_read.csv"
-    dram_write_trace = "test_dram_write.csv"
+        filter_sram_size = 1 * 1024
+        ifmap_sram_size = 1 * 1024
+        ofmap_sram_size = 1 * 1024
 
-    gen_all_traces(
-        array_h = dimensions,
-        array_w = dimensions,
-        ifmap_h= ifmap_h, ifmap_w= ifmap_w, num_channels=num_channels,
-        filt_h= filt_h, filt_w= filt_w, num_filt= num_filters,
-        strides= strides,
+        filter_base = 1000000
+        ifmap_base = 0
+        ofmap_base = 2000000
 
-        filter_sram_size= filter_sram_size, ifmap_sram_size= ifmap_sram_size, ofmap_sram_size= ofmap_sram_size,
-        word_size_bytes= word_sz, filt_base= filter_base, ifmap_base= ifmap_base,
+        sram_read_trace = f"test_sram_read_{data_flow}_{test_key}.csv"
+        sram_write_trace  = f"test_sram_write_{data_flow}_{test_key}.csv"
+        dram_filter_read_trace = f"test_dram_filt_read_{data_flow}_{test_key}.csv"
+        dram_ifmap_read_trace  = f"test_dram_ifamp_read_{data_flow}_{test_key}.csv"
+        dram_write_trace = f"test_dram_write_{data_flow}_{test_key}.csv"
 
-        sram_read_trace_file= sram_read_trace, sram_write_trace_file= sram_write_trace,
+        gen_all_traces(
+                array_h = dimensions,
+                array_w = dimensions,
+                ifmap_h= ifmap_h, ifmap_w= ifmap_w, num_channels=num_channels,
+                filt_h= filt_h, filt_w= filt_w, num_filt= num_filters,
+                strides= strides,
 
-        dram_filter_trace_file= dram_filter_read_trace,
-        dram_ifmap_trace_file= dram_ifmap_read_trace,
-        dram_ofmap_trace_file= dram_write_trace
-    )
+                data_flow=data_flow,
 
+                filter_sram_size= filter_sram_size, ifmap_sram_size= ifmap_sram_size, ofmap_sram_size= ofmap_sram_size,
+                word_size_bytes= word_sz, filt_base= filter_base, ifmap_base= ifmap_base,
+
+                sram_read_trace_file= sram_read_trace, sram_write_trace_file= sram_write_trace,
+                
+                dram_filter_trace_file= dram_filter_read_trace,
+                dram_ifmap_trace_file= dram_ifmap_read_trace,
+                dram_ofmap_trace_file= dram_write_trace
+        )
+
+        print("")
+
+    print(f"Completed all the test cases for {data_flow} dataflow")
 
 if __name__ == "__main__":
     test()

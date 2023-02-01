@@ -10,8 +10,8 @@ def sram_traffic(
         num_channels=3,
         strides=1, num_filt=8,
         ofmap_base=2000000, filt_base=1000000, ifmap_base=0,
-        sram_read_trace_file="sram_read.csv",
-        sram_write_trace_file="sram_write.csv"
+        sram_read_trace_file="is_sram_read_testing",
+        sram_write_trace_file="is_sram_write_testing"
     ):
 
     # Dimensions of output feature map channel
@@ -193,6 +193,7 @@ def sram_traffic(
         remaining_cols -= cols_this_fold
 
     avg_util = (util / compute_cycles) * 100
+    print(avg_util)
     return (str(cycles), avg_util)
 
 
@@ -473,19 +474,19 @@ def gen_trace_filter(
     return local_cycle
 
 if __name__ == "__main__":
-    h_h = 5
-    h_w = 5
+    h_h = 400
+    h_w = 400
 
-    r_h = 2
-    r_w = 2
+    r_h = 3
+    r_w = 3
 
-    c = 2
-    u =2
+    c = 3
+    u = 1
 
-    m = 30
+    m = 16
 
-    dim_h = 4
-    dim_v = 9
+    dim_h = 24
+    dim_v = 24
 
     sram_traffic(
         dimension_rows= dim_h,

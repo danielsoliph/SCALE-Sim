@@ -26,7 +26,7 @@ def sram_traffic(
     # Number of pixels in one convolution window
     px_per_conv_window = filt_h * filt_w * num_channels
     r2c = px_per_conv_window
-
+    rc = filt_w * num_channels
     # Total number of ofmap px across all channels
     num_ofmap_px = E_h * E_w * num_filt
     e2  = E_h * E_w
@@ -43,9 +43,13 @@ def sram_traffic(
     util = 0
     cycles = 0
     write_cycles = 0
+    local_cycle =0
 
     outfile_read = open(sram_read_trace_file,'w')
     outfile_write = open(sram_write_trace_file,'w')
+    
+    tot = num_v_fold
+    pbar = tqdm(total=tot)
 
     #assign addr for filter and ifmap
     filt_addr =[]
@@ -61,28 +65,33 @@ def sram_traffic(
     for i in range(e2):
         addr = (i%E_w)*num_channels*strides + math.floor(i/E_w)*hc*strides
         ifmap_base_addr.append(addr)
+        addr = i*num_filt + ofmap_base
+        ofmap_addr.append(addr)
     
     for i in range(r2c):
-        addr = math.floor(i/E_w)*hc*strides + (i%E_w)*strides
+        addr = math.floor(i/rc)*hc + (i%rc)
         ifmap_offset.append(addr)
     
-    for i in range(e2):
-        addr = i * num_filt +ofmap_base
-        ofmap_addr.append(addr)
+    #for i in range(e2):
+    #    addr = i * num_filt +ofmap_base
+    #    ofmap_addr.append(addr)
 
-    prefill = ""
     trace = ""
     write_trace = ""
     num_rows = dimension_rows
     num_cols = dimension_cols
     filt_left = num_filt
 
+    trace_list = []
+    write_trace_list =[]
+    
     #each block addr
     h_fold = 0
     v_fold = 0
 
+    #print("num_v,num_h: "+str(num_v_fold)+", "+str(num_h_fold))
     while( v_fold<num_v_fold):
-        
+        #print("v,h: "+str(v_fold) + ", " + str(h_fold))
         filt_row = h_fold*num_rows
         filt_col = v_fold*num_cols
         row_use = min(num_rows,r2c - filt_row)
@@ -91,44 +100,49 @@ def sram_traffic(
 
         #prefill weights
         for r in range(filt_row,filt_row + row_use):
-            trace += str(cycles)+", "
+            trace_list.append(str(cycles))
+            trace_list.append(", ")
             cycles += 1
-            for k in range(num_rows):
-                trace += ", "
+            #for k in range(num_rows):
+            #    trace += ", "
+            trace_list.append(", " * num_rows)
             for c in range(filt_col,filt_col + col_use):
-                trace += str(filt_addr[c]+r)+", "
-            trace += "\n"
+                trace_list.append(str(filt_addr[c]+r)+", ")
+            trace_list.append("\n")
 
         write_cycles = cycles
 
         #stream ifmap windows
         for i in range(e2):
-            trace += str(cycles)+", "
+            trace_list.append(str(cycles))
+            trace_list.append(", ")
             cycles += 1
-            #need to arrange the range
+            #need to arrange the racnge
             for r in range(row_use+filt_row,filt_row,-1):
                 addr = ifmap_base_addr[i]+ifmap_offset[r-1]
-                trace += str(addr)+", "
-            for c in range(num_cols):
-                trace += ", "
-            trace += "\n"
+                trace_list.append(str(addr)+", ")
+            #for c in range(num_cols):
+            #    trace += ", "
+            trace_list.append(", " * num_cols)
+            trace_list.append("\n")
         #print(trace) 
     
         #then, wait until the sram_write is done
         write_cycles += col_use + row_use
     
         for o in range(e2):
-            write_trace += str(write_cycles)+", "
+            write_trace_list.append(str(write_cycles)+", ")
             write_cycles += 1
             for f in range(filt_col,filt_col+col_use):
-                write_trace += str(ofmap_addr[o] + f) +", "
-            write_trace += "\n"
-    
+                write_trace_list.append(str(ofmap_addr[o] + f) +", ")
+            write_trace_list.append("\n")
+        
         #print(write_trace)
 
         h_fold += 1
         if(num_h_fold == h_fold):
             v_fold += 1
+            pbar.update(1)
             h_fold = 0
             
         
@@ -138,20 +152,30 @@ def sram_traffic(
         
         #now to take care of v_fold?
         #later...
+        
+        #util calculation
+        this_util = (row_use * col_use)/(num_rows * num_cols)
+        util += this_util
+        local_cycle += 1
+        final_util = (util/local_cycle) * 100
     
-    
-    print(trace)
-    print(write_trace)
+    #print(trace)
+    #print(write_trace)
+    #print(final_util)
+    #print(str(cycles-1))
+    trace = ''.join(trace_list)
+    write_trace = ''.join(write_trace_list)
     outfile_read.write(trace)
     outfile_write.write(write_trace)
 
+    pbar.close()
     outfile_read.close()
     outfile_write.close()
 
     #by doing this, finished 5 output channels
     #we just need to do the other 3 output channels                
                 
-    return cycles-1,util
+    return str(cycles),final_util
 
 
 
